@@ -1,6 +1,6 @@
 package model
 
-type Collaborators struct {
+type GitHubRepository struct {
 	OrganizationName string
 	RepositoryName   string
 	RepositoryOwner  string
