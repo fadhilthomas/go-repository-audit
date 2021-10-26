@@ -6,6 +6,7 @@ import (
 	"github.com/fadhilthomas/go-repository-audit/model"
 	"github.com/google/go-github/v39/github"
 	"github.com/jomei/notionapi"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
@@ -13,7 +14,6 @@ import (
 )
 
 var (
-	notionPageList []notionapi.Page
 	notionDatabase *notionapi.Client
 )
 
@@ -44,13 +44,11 @@ func main() {
 
 	listCollaboratorsOptions := &github.ListCollaboratorsOptions{}
 
-	var githubRepositoryList []model.GitHubRepository
-
 	// get all pages of results
 	for {
 		repositoryList, resp, err := client.Repositories.ListByOrg(ctx, organizationName, repositoryListByOrgOptions)
 		if err != nil {
-			log.Error().Stack().Err(err).Msg("")
+			log.Error().Stack().Err(errors.New(err.Error())).Msg("")
 			continue
 		}
 		if resp.StatusCode != 200 {
@@ -60,14 +58,30 @@ func main() {
 		for _, repository := range repositoryList {
 			repositoryName := *repository.Name
 			repositoryOwner := *repository.Owner.Login
-			userList, resp, err := client.Repositories.ListCollaborators(ctx, repositoryOwner, repositoryName, listCollaboratorsOptions)
+			userList, _, err := client.Repositories.ListCollaborators(ctx, repositoryOwner, repositoryName, listCollaboratorsOptions)
 
 			if err != nil {
-				log.Error().Stack().Err(err).Msg("")
+				log.Error().Stack().Err(errors.New(err.Error())).Msg("")
 				continue
 			}
-			if resp.StatusCode != 200 {
-				continue
+
+			// get all page with repository name
+			githubRepositoryNotionList, err := model.QueryNotionRepository(notionDatabase, repositoryName)
+			if err != nil {
+				log.Error().Stack().Err(err).Msg("")
+				return
+			}
+
+			// if list of repository name page not empty
+			// update all status to close
+			if len(githubRepositoryNotionList) > 0 {
+				for _, githubRepositoryNotionPage := range githubRepositoryNotionList {
+					_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						return
+					}
+				}
 			}
 
 			for _, user := range userList {
@@ -77,11 +91,28 @@ func main() {
 				githubRepository.RepositoryOwner = repositoryOwner
 				githubRepository.UserLogin = *user.Login
 				githubRepository.Permission = user.Permissions
-				githubRepositoryList = append(githubRepositoryList, githubRepository)
-				_, err = model.InsertNotionRepository(notionDatabase, githubRepository)
+
+				// get page with repository name and user
+				githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
 				if err != nil {
 					log.Error().Stack().Err(err).Msg("")
 					return
+				}
+
+				// if list of repository name and user page empty
+				// insert to notion
+				if len(githubRepositoryUserNotion) == 0 {
+					_, err = model.InsertNotionRepository(notionDatabase, githubRepository)
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						continue
+					}
+				} else {
+					_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						return
+					}
 				}
 			}
 		}

@@ -13,12 +13,41 @@ func OpenNotionDB() (client *notionapi.Client) {
 	return client
 }
 
-func QueryNotionRepositoryName(client *notionapi.Client, repositoryName string) (output []notionapi.Page, err error) {
+func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, userLogin string) (output []notionapi.Page, err error) {
+	databaseId := config.GetStr(config.NOTION_DATABASE)
+
+	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
+		CompoundFilter: &notionapi.CompoundFilter{
+			notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
+				{
+					Property: "Repository",
+					Select: &notionapi.SelectFilterCondition{
+						Equals: repositoryName,
+					},
+				},
+				{
+					Property: "User Login",
+					Select: &notionapi.SelectFilterCondition{
+						Equals: userLogin,
+					},
+				},
+			},
+		},
+	}
+
+	res, err := client.Database.Query(context.Background(), notionapi.DatabaseID(databaseId), databaseQueryRequest)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
+	return res.Results, nil
+}
+
+func QueryNotionRepository(client *notionapi.Client, repositoryName string) (output []notionapi.Page, err error) {
 	databaseId := config.GetStr(config.NOTION_DATABASE)
 
 	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
 		PropertyFilter: &notionapi.PropertyFilter{
-			Property: "Repository Name",
+			Property: "Repository",
 			Select: &notionapi.SelectFilterCondition{
 				Equals: repositoryName,
 			},
@@ -40,7 +69,7 @@ func InsertNotionRepository(client *notionapi.Client, repository GitHubRepositor
 			DatabaseID: notionapi.DatabaseID(databaseId),
 		},
 		Properties: notionapi.Properties{
-			"Organization Name": notionapi.TitleProperty{
+			"Organization": notionapi.TitleProperty{
 				Title: []notionapi.RichText{
 					{
 						Text: notionapi.Text{
@@ -49,7 +78,7 @@ func InsertNotionRepository(client *notionapi.Client, repository GitHubRepositor
 					},
 				},
 			},
-			"Repository Name": notionapi.SelectProperty{
+			"Repository": notionapi.SelectProperty{
 				Select: notionapi.Option{
 					Name: repository.RepositoryName,
 				},
@@ -64,22 +93,99 @@ func InsertNotionRepository(client *notionapi.Client, repository GitHubRepositor
 					Name: repository.UserLogin,
 				},
 			},
-			"Admin Permission": notionapi.CheckboxProperty{
+			"Admin": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["admin"],
 			},
-			"Maintain Permission": notionapi.CheckboxProperty{
+			"Maintain": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["maintain"],
 			},
-			"Pull Permission": notionapi.CheckboxProperty{
+			"Pull": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["pull"],
 			},
-			"Push Permission": notionapi.CheckboxProperty{
+			"Push": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["push"],
+			},
+			"Status": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: "open",
+				},
 			},
 		},
 	}
 
 	res, err := client.Page.Create(context.Background(), pageInsertQuery)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
+	return res, nil
+}
+
+func UpdateNotionRepository(client *notionapi.Client, pageId string, repository GitHubRepository, status string) (output *notionapi.Page, err error) {
+	pageUpdateQuery := &notionapi.PageUpdateRequest{
+		Properties: notionapi.Properties{
+			"Organization": notionapi.TitleProperty{
+				Title: []notionapi.RichText{
+					{
+						Text: notionapi.Text{
+							Content: repository.OrganizationName,
+						},
+					},
+				},
+			},
+			"Repository": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: repository.RepositoryName,
+				},
+			},
+			"Owner": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: repository.RepositoryOwner,
+				},
+			},
+			"User Login": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: repository.UserLogin,
+				},
+			},
+			"Admin": notionapi.CheckboxProperty{
+				Checkbox: repository.Permission["admin"],
+			},
+			"Maintain": notionapi.CheckboxProperty{
+				Checkbox: repository.Permission["maintain"],
+			},
+			"Pull": notionapi.CheckboxProperty{
+				Checkbox: repository.Permission["pull"],
+			},
+			"Push": notionapi.CheckboxProperty{
+				Checkbox: repository.Permission["push"],
+			},
+			"Status": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: status,
+				},
+			},
+		},
+	}
+
+	res, err := client.Page.Update(context.Background(), notionapi.PageID(pageId), pageUpdateQuery)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
+	return res, nil
+}
+
+func UpdateNotionRepositoryStatus(client *notionapi.Client, pageId string, status string) (output *notionapi.Page, err error) {
+	pageUpdateQuery := &notionapi.PageUpdateRequest{
+		Properties: notionapi.Properties{
+			"Status": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: status,
+				},
+			},
+		},
+	}
+
+	res, err := client.Page.Update(context.Background(), notionapi.PageID(pageId), pageUpdateQuery)
 	if err != nil {
 		return nil, errors.New(err.Error())
 	}
