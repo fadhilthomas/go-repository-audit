@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/rs/zerolog/pkgerrors"
 	"golang.org/x/oauth2"
+	"go.uber.org/ratelimit"
 )
 
 var (
@@ -30,6 +31,7 @@ func main() {
 	githubToken := config.GetStr(config.GITHUB_TOKEN)
 
 	notionDatabase = model.OpenNotionDB()
+	rl := ratelimit.New(1)
 
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
@@ -66,6 +68,7 @@ func main() {
 			}
 
 			// get all page with repository name
+			rl.Take()
 			githubRepositoryNotionList, err := model.QueryNotionRepository(notionDatabase, repositoryName)
 			if err != nil {
 				log.Error().Stack().Err(err).Msg("")
@@ -76,6 +79,7 @@ func main() {
 			// update all status to close
 			if len(githubRepositoryNotionList) > 0 {
 				for _, githubRepositoryNotionPage := range githubRepositoryNotionList {
+					rl.Take()
 					_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")
@@ -92,6 +96,7 @@ func main() {
 				githubRepository.UserLogin = *user.Login
 				githubRepository.Permission = user.Permissions
 
+				rl.Take()
 				// get page with repository name and user
 				githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
 				if err != nil {
@@ -102,18 +107,21 @@ func main() {
 				// if list of repository name and user page empty
 				// insert to notion
 				if len(githubRepositoryUserNotion) == 0 {
+					rl.Take()
 					_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")
 						continue
 					}
 
+					rl.Take()
 					_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")
 						continue
 					}
 				} else {
+					rl.Take()
 					_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")

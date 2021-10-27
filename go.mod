@@ -7,5 +7,6 @@ require (
 	github.com/jomei/notionapi v1.5.2
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.25.0
+	go.uber.org/ratelimit v0.2.0
 	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
 )
