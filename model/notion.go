@@ -14,7 +14,7 @@ func OpenNotionDB() (client *notionapi.Client) {
 }
 
 func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, userLogin string) (output []notionapi.Page, err error) {
-	databaseId := config.GetStr(config.NOTION_DATABASE)
+	databaseId := config.GetStr(config.NOTION_REPORT_DATABASE)
 
 	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
 		CompoundFilter: &notionapi.CompoundFilter{
@@ -43,7 +43,7 @@ func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, 
 }
 
 func QueryNotionRepository(client *notionapi.Client, repositoryName string) (output []notionapi.Page, err error) {
-	databaseId := config.GetStr(config.NOTION_DATABASE)
+	databaseId := config.GetStr(config.NOTION_REPORT_DATABASE)
 
 	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
 		PropertyFilter: &notionapi.PropertyFilter{
@@ -61,8 +61,13 @@ func QueryNotionRepository(client *notionapi.Client, repositoryName string) (out
 	return res.Results, nil
 }
 
-func InsertNotionRepository(client *notionapi.Client, repository GitHubRepository) (output *notionapi.Page, err error) {
-	databaseId := config.GetStr(config.NOTION_DATABASE)
+func InsertNotionRepository(client *notionapi.Client, notionDatabaseType string, repository GitHubRepository) (output *notionapi.Page, err error) {
+	var databaseId string
+	if notionDatabaseType == "change-log" {
+		databaseId = config.GetStr(config.NOTION_CHANGE_DATABASE)
+	} else if notionDatabaseType == "report-log" {
+		databaseId = config.GetStr(config.NOTION_REPORT_DATABASE)
+	}
 
 	pageInsertQuery := &notionapi.PageCreateRequest{
 		Parent: notionapi.Parent{

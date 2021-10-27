@@ -102,7 +102,13 @@ func main() {
 				// if list of repository name and user page empty
 				// insert to notion
 				if len(githubRepositoryUserNotion) == 0 {
-					_, err = model.InsertNotionRepository(notionDatabase, githubRepository)
+					_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						continue
+					}
+
+					_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")
 						continue
