@@ -101,6 +101,10 @@ func main() {
 					githubRepository.UserLogin = *user.Login
 					githubRepository.Permission = user.Permissions
 
+					if githubRepository.Permission["admin"] != true || githubRepository.Permission["push"] != true {
+						continue
+					}
+
 					rl.Take()
 					// get page with repository name and user
 					githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
