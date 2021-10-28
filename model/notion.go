@@ -88,24 +88,13 @@ func InsertNotionRepository(client *notionapi.Client, notionDatabaseType string,
 					Name: repository.RepositoryName,
 				},
 			},
-			"Owner": notionapi.SelectProperty{
-				Select: notionapi.Option{
-					Name: repository.RepositoryOwner,
-				},
-			},
-			"User Login": notionapi.SelectProperty{
+			"User": notionapi.SelectProperty{
 				Select: notionapi.Option{
 					Name: repository.UserLogin,
 				},
 			},
 			"Admin": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["admin"],
-			},
-			"Maintain": notionapi.CheckboxProperty{
-				Checkbox: repository.Permission["maintain"],
-			},
-			"Pull": notionapi.CheckboxProperty{
-				Checkbox: repository.Permission["pull"],
 			},
 			"Push": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["push"],
@@ -142,24 +131,13 @@ func UpdateNotionRepository(client *notionapi.Client, pageId string, repository 
 					Name: repository.RepositoryName,
 				},
 			},
-			"Owner": notionapi.SelectProperty{
-				Select: notionapi.Option{
-					Name: repository.RepositoryOwner,
-				},
-			},
-			"User Login": notionapi.SelectProperty{
+			"User": notionapi.SelectProperty{
 				Select: notionapi.Option{
 					Name: repository.UserLogin,
 				},
 			},
 			"Admin": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["admin"],
-			},
-			"Maintain": notionapi.CheckboxProperty{
-				Checkbox: repository.Permission["maintain"],
-			},
-			"Pull": notionapi.CheckboxProperty{
-				Checkbox: repository.Permission["pull"],
 			},
 			"Push": notionapi.CheckboxProperty{
 				Checkbox: repository.Permission["push"],
