@@ -26,7 +26,7 @@ func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, 
 					},
 				},
 				{
-					Property: "User Login",
+					Property: "User",
 					Select: &notionapi.SelectFilterCondition{
 						Equals: userLogin,
 					},
