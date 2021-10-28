@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/fadhilthomas/go-repository-audit/config"
 	"github.com/fadhilthomas/go-repository-audit/model"
-	"github.com/google/go-github/v39/github"
+	"github.com/google/go-github/github"
 	"github.com/jomei/notionapi"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -41,9 +41,6 @@ func main() {
 	client := github.NewClient(tc)
 
 	repositoryListByOrgOptions := &github.RepositoryListByOrgOptions{}
-
-	collaboratorsListOptions := &github.ListCollaboratorsOptions{}
-
 	// get all pages of results
 	for {
 		repositoryList, repositoryResp, err := client.Repositories.ListByOrg(ctx, organizationName, repositoryListByOrgOptions)
@@ -51,14 +48,12 @@ func main() {
 			log.Error().Stack().Err(errors.New(err.Error())).Msg("")
 			continue
 		}
-		if repositoryResp.StatusCode != 200 {
-			continue
-		}
 
 		for _, repository := range repositoryList {
 			repositoryName := *repository.Name
 			repositoryOwner := *repository.Owner.Login
 
+			collaboratorsListOptions := &github.ListCollaboratorsOptions{}
 			// get all collaborator
 			for {
 				collaboratorsList, collaboratorsResp, err := client.Repositories.ListCollaborators(ctx, repositoryOwner, repositoryName, collaboratorsListOptions)
@@ -68,16 +63,12 @@ func main() {
 					continue
 				}
 
-				if collaboratorsResp.StatusCode != 200 {
-					continue
-				}
-
 				// get all page with repository name
 				rl.Take()
 				githubRepositoryNotionList, err := model.QueryNotionRepository(notionDatabase, repositoryName)
 				if err != nil {
 					log.Error().Stack().Err(err).Msg("")
-					return
+					continue
 				}
 
 				// if list of repository name page not empty
@@ -88,7 +79,7 @@ func main() {
 						_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
 						if err != nil {
 							log.Error().Stack().Err(err).Msg("")
-							return
+							continue
 						}
 					}
 				}
@@ -99,42 +90,40 @@ func main() {
 					githubRepository.RepositoryName = repositoryName
 					githubRepository.RepositoryOwner = repositoryOwner
 					githubRepository.UserLogin = *user.Login
-					githubRepository.Permission = user.Permissions
+					githubRepository.Permission = *user.Permissions
 
-					if githubRepository.Permission["admin"] != true || githubRepository.Permission["push"] != true {
-						continue
-					}
-
-					rl.Take()
-					// get page with repository name and user
-					githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
-					if err != nil {
-						log.Error().Stack().Err(err).Msg("")
-						return
-					}
-
-					// if list of repository name and user page empty
-					// insert to notion
-					if len(githubRepositoryUserNotion) == 0 {
+					if githubRepository.Permission["push"] {
 						rl.Take()
-						_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
+						// get page with repository name and user
+						githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
 						if err != nil {
 							log.Error().Stack().Err(err).Msg("")
 							continue
 						}
 
-						rl.Take()
-						_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
-						if err != nil {
-							log.Error().Stack().Err(err).Msg("")
-							continue
-						}
-					} else {
-						rl.Take()
-						_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
-						if err != nil {
-							log.Error().Stack().Err(err).Msg("")
-							return
+						// if list of repository name and user page empty
+						// insert to notion
+						if len(githubRepositoryUserNotion) == 0 {
+							rl.Take()
+							_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
+							if err != nil {
+								log.Error().Stack().Err(err).Msg("")
+								continue
+							}
+
+							rl.Take()
+							_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
+							if err != nil {
+								log.Error().Stack().Err(err).Msg("")
+								continue
+							}
+						} else {
+							rl.Take()
+							_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
+							if err != nil {
+								log.Error().Stack().Err(err).Msg("")
+								continue
+							}
 						}
 					}
 				}
