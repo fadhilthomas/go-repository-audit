@@ -42,14 +42,24 @@ func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, 
 	return res.Results, nil
 }
 
-func QueryNotionRepository(client *notionapi.Client, repositoryName string) (output []notionapi.Page, err error) {
+func QueryNotionRepositoryStatus(client *notionapi.Client, repositoryName string, status string) (output []notionapi.Page, err error) {
 	databaseId := config.GetStr(config.NOTION_REPORT_DATABASE)
 
 	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
-		PropertyFilter: &notionapi.PropertyFilter{
-			Property: "Repository",
-			Select: &notionapi.SelectFilterCondition{
-				Equals: repositoryName,
+		CompoundFilter: &notionapi.CompoundFilter{
+			notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
+				{
+					Property: "Repository",
+					Select: &notionapi.SelectFilterCondition{
+						Equals: repositoryName,
+					},
+				},
+				{
+					Property: "Status",
+					Select: &notionapi.SelectFilterCondition{
+						Equals: status,
+					},
+				},
 			},
 		},
 	}

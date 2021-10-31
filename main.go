@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/fadhilthomas/go-repository-audit/config"
 	"github.com/fadhilthomas/go-repository-audit/model"
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v39/github"
 	"github.com/jomei/notionapi"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -40,102 +40,151 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := github.NewClient(tc)
 
-	repositoryListByOrgOptions := &github.RepositoryListByOrgOptions{}
-	// get all pages of results
+	teamListByOrgOptions := &github.ListOptions{}
+
+	var teamList []*github.Team
+	var repoList []*github.Repository
+
+	// get all teams by org name
 	for {
-		repositoryList, repositoryResp, err := client.Repositories.ListByOrg(ctx, organizationName, repositoryListByOrgOptions)
+		rl.Take()
+		teamListRes, teamResp, err := client.Teams.ListTeams(ctx, organizationName, teamListByOrgOptions)
 		if err != nil {
 			log.Error().Stack().Err(errors.New(err.Error())).Msg("")
 			continue
 		}
+		teamList = append(teamList, teamListRes...)
 
-		for _, repository := range repositoryList {
-			repositoryName := *repository.Name
-			repositoryOwner := *repository.Owner.Login
+		if teamResp.NextPage == 0 {
+			break
+		}
+		teamListByOrgOptions.Page = teamResp.NextPage
+	}
 
-			collaboratorsListOptions := &github.ListCollaboratorsOptions{}
-			// get all collaborator
-			for {
-				collaboratorsList, collaboratorsResp, err := client.Repositories.ListCollaborators(ctx, repositoryOwner, repositoryName, collaboratorsListOptions)
+	for _, teamSlug := range teamList {
+		repoListByTeamOptions := &github.ListOptions{}
 
+		for {
+			rl.Take()
+
+			// get all repos by team slug
+			repoListRes, repoResp, err := client.Teams.ListTeamReposBySlug(ctx, organizationName, *teamSlug.Slug, repoListByTeamOptions)
+			if err != nil {
+				log.Error().Stack().Err(errors.New(err.Error())).Msg("")
+				continue
+			}
+			repoList = append(repoList, repoListRes...)
+
+			if repoResp.NextPage == 0 {
+				break
+			}
+			repoListByTeamOptions.Page = repoResp.NextPage
+		}
+	}
+
+	for _, repo := range removeDuplicate(repoList) {
+
+		collaboratorsListOptions := &github.ListCollaboratorsOptions{}
+
+		var userList []*github.User
+		repositoryName := *repo.Name
+		repositoryOwner := *repo.Owner.Login
+
+		for {
+			userListRes, collaboratorsResp, err := client.Repositories.ListCollaborators(ctx, repositoryOwner, repositoryName, collaboratorsListOptions)
+
+			if err != nil {
+				log.Error().Stack().Err(errors.New(err.Error())).Msg("")
+				continue
+			}
+			userList = append(userList, userListRes...)
+
+			if collaboratorsResp.NextPage == 0 {
+				break
+			}
+			collaboratorsListOptions.Page = collaboratorsResp.NextPage
+		}
+
+		// get all page with repo name and open status
+		rl.Take()
+		githubRepositoryNotionList, err := model.QueryNotionRepositoryStatus(notionDatabase, repositoryName, "open")
+		if err != nil {
+			log.Error().Stack().Err(err).Msg("")
+			continue
+		}
+
+		// if list of pages not empty
+		// update all status to close
+		if len(githubRepositoryNotionList) > 0 {
+			for _, githubRepositoryNotionPage := range githubRepositoryNotionList {
+				rl.Take()
+				_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
 				if err != nil {
-					log.Error().Stack().Err(errors.New(err.Error())).Msg("")
+					log.Error().Stack().Err(err).Msg("")
 					continue
 				}
+			}
+		}
 
-				// get all page with repository name
+		for _, user := range userList {
+			githubRepository := model.GitHubRepository{}
+			githubRepository.OrganizationName = organizationName
+			githubRepository.RepositoryName = repositoryName
+			githubRepository.RepositoryOwner = repositoryOwner
+			githubRepository.UserLogin = *user.Login
+			githubRepository.Permission = user.Permissions
+
+			if githubRepository.Permission["push"] {
 				rl.Take()
-				githubRepositoryNotionList, err := model.QueryNotionRepository(notionDatabase, repositoryName)
+				// get page with repository name and user
+				githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
 				if err != nil {
 					log.Error().Stack().Err(err).Msg("")
 					continue
 				}
 
-				// if list of repository name page not empty
-				// update all status to close
-				if len(githubRepositoryNotionList) > 0 {
-					for _, githubRepositoryNotionPage := range githubRepositoryNotionList {
-						rl.Take()
-						_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
-						if err != nil {
-							log.Error().Stack().Err(err).Msg("")
-							continue
-						}
+				// if list of repository name and user page empty
+				// insert to notion
+				if len(githubRepositoryUserNotion) == 0 {
+					rl.Take()
+					_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						continue
+					}
+
+					rl.Take()
+					_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						continue
+					}
+				} else {
+					rl.Take()
+					_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
+					if err != nil {
+						log.Error().Stack().Err(err).Msg("")
+						continue
 					}
 				}
-
-				for _, user := range collaboratorsList {
-					githubRepository := model.GitHubRepository{}
-					githubRepository.OrganizationName = organizationName
-					githubRepository.RepositoryName = repositoryName
-					githubRepository.RepositoryOwner = repositoryOwner
-					githubRepository.UserLogin = *user.Login
-					githubRepository.Permission = *user.Permissions
-
-					if githubRepository.Permission["push"] {
-						rl.Take()
-						// get page with repository name and user
-						githubRepositoryUserNotion, err := model.QueryNotionRepositoryUser(notionDatabase, repositoryName, *user.Login)
-						if err != nil {
-							log.Error().Stack().Err(err).Msg("")
-							continue
-						}
-
-						// if list of repository name and user page empty
-						// insert to notion
-						if len(githubRepositoryUserNotion) == 0 {
-							rl.Take()
-							_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
-							if err != nil {
-								log.Error().Stack().Err(err).Msg("")
-								continue
-							}
-
-							rl.Take()
-							_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
-							if err != nil {
-								log.Error().Stack().Err(err).Msg("")
-								continue
-							}
-						} else {
-							rl.Take()
-							_, err = model.UpdateNotionRepository(notionDatabase, githubRepositoryUserNotion[0].ID.String(), githubRepository, "open")
-							if err != nil {
-								log.Error().Stack().Err(err).Msg("")
-								continue
-							}
-						}
-					}
-				}
-				if collaboratorsResp.NextPage == 0 {
-					break
-				}
-				collaboratorsListOptions.Page = collaboratorsResp.NextPage
 			}
 		}
-		if repositoryResp.NextPage == 0 {
-			break
-		}
-		repositoryListByOrgOptions.Page = repositoryResp.NextPage
+
 	}
+}
+
+func removeDuplicate(duplicate []*github.Repository) []github.Repository {
+	var unique []github.Repository
+	type key struct{ value1 int64 }
+	m := make(map[key]int)
+	for _, v := range duplicate {
+		k := key{*v.ID}
+		if i, ok := m[k]; ok {
+			unique[i] = *v
+		} else {
+			m[k] = len(unique)
+			unique = append(unique, *v)
+		}
+	}
+	return unique
 }
