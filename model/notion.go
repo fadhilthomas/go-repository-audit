@@ -71,10 +71,10 @@ func QueryNotionRepositoryStatus(client *notionapi.Client, repositoryName string
 	return res.Results, nil
 }
 
-func InsertNotionRepository(client *notionapi.Client, notionDatabaseType string, repository GitHubRepository) (output *notionapi.Page, err error) {
+func InsertNotionNewPermission(client *notionapi.Client, notionDatabaseType string, repository GitHubRepository) (output *notionapi.Page, err error) {
 	var databaseId string
 	if notionDatabaseType == "change-log" {
-		databaseId = config.GetStr(config.NOTION_CHANGE_DATABASE)
+		databaseId = config.GetStr(config.NOTION_PERMISSION_DATABASE)
 	} else if notionDatabaseType == "report-log" {
 		databaseId = config.GetStr(config.NOTION_REPORT_DATABASE)
 	}
@@ -112,6 +112,43 @@ func InsertNotionRepository(client *notionapi.Client, notionDatabaseType string,
 			"Status": notionapi.SelectProperty{
 				Select: notionapi.Option{
 					Name: "open",
+				},
+			},
+		},
+	}
+
+	res, err := client.Page.Create(context.Background(), pageInsertQuery)
+	if err != nil {
+		return nil, errors.New(err.Error())
+	}
+	return res, nil
+}
+
+func InsertNotionNewRepository(client *notionapi.Client, organizationName string, repositoryName string, repositoryOwner string) (output *notionapi.Page, err error) {
+	databaseId := config.GetStr(config.NOTION_REPOSITORY_DATABASE)
+
+	pageInsertQuery := &notionapi.PageCreateRequest{
+		Parent: notionapi.Parent{
+			DatabaseID: notionapi.DatabaseID(databaseId),
+		},
+		Properties: notionapi.Properties{
+			"Organization": notionapi.TitleProperty{
+				Title: []notionapi.RichText{
+					{
+						Text: notionapi.Text{
+							Content: organizationName,
+						},
+					},
+				},
+			},
+			"Repository": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: repositoryName,
+				},
+			},
+			"Owner": notionapi.SelectProperty{
+				Select: notionapi.Option{
+					Name: repositoryOwner,
 				},
 			},
 		},

@@ -66,7 +66,6 @@ func main() {
 
 		for {
 			rl.Take()
-
 			// get all repos by team slug
 			repoListRes, repoResp, err := client.Teams.ListTeamReposBySlug(ctx, organizationName, *teamSlug.Slug, repoListByTeamOptions)
 			if err != nil {
@@ -83,9 +82,8 @@ func main() {
 	}
 
 	for _, repo := range removeDuplicate(repoList) {
-
 		collaboratorsListOptions := &github.ListCollaboratorsOptions{}
-
+		isNewRepository := false
 		var userList []*github.User
 		repositoryName := *repo.Name
 		repositoryOwner := *repo.Owner.Login
@@ -116,6 +114,7 @@ func main() {
 		// if list of pages not empty
 		// update all status to close
 		if len(githubRepositoryNotionList) > 0 {
+			isNewRepository = false
 			for _, githubRepositoryNotionPage := range githubRepositoryNotionList {
 				rl.Take()
 				_, err = model.UpdateNotionRepositoryStatus(notionDatabase, githubRepositoryNotionPage.ID.String(), "close")
@@ -123,6 +122,14 @@ func main() {
 					log.Error().Stack().Err(err).Msg("")
 					continue
 				}
+			}
+		} else {
+			isNewRepository = true
+			rl.Take()
+			_, err = model.InsertNotionNewRepository(notionDatabase, organizationName, repositoryName, repositoryOwner)
+			if err != nil {
+				log.Error().Stack().Err(err).Msg("")
+				continue
 			}
 		}
 
@@ -147,17 +154,19 @@ func main() {
 				// insert to notion
 				if len(githubRepositoryUserNotion) == 0 {
 					rl.Take()
-					_, err = model.InsertNotionRepository(notionDatabase, "report-log", githubRepository)
+					_, err = model.InsertNotionNewPermission(notionDatabase, "report-log", githubRepository)
 					if err != nil {
 						log.Error().Stack().Err(err).Msg("")
 						continue
 					}
 
-					rl.Take()
-					_, err = model.InsertNotionRepository(notionDatabase, "change-log", githubRepository)
-					if err != nil {
-						log.Error().Stack().Err(err).Msg("")
-						continue
+					if !isNewRepository {
+						rl.Take()
+						_, err = model.InsertNotionNewPermission(notionDatabase, "change-log", githubRepository)
+						if err != nil {
+							log.Error().Stack().Err(err).Msg("")
+							continue
+						}
 					}
 				} else {
 					rl.Take()

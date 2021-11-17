@@ -7,5 +7,6 @@ var base = mergeConfig(
 	organizationNameConfig,
 	notionTokenConfig,
 	notionReportDatabaseConfig,
-	notionChangeDatabaseConfig,
+	notionRepositoryDatabaseConfig,
+	notionPermissionDatabaseConfig,
 )
