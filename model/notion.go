@@ -16,59 +16,73 @@ func OpenNotionDB() (client *notionapi.Client) {
 func QueryNotionRepositoryUser(client *notionapi.Client, repositoryName string, userLogin string) (output []notionapi.Page, err error) {
 	databaseId := config.GetStr(config.NOTION_REPORT_DATABASE)
 
-	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
-		CompoundFilter: &notionapi.CompoundFilter{
-			notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
-				{
-					Property: "Repository",
-					Select: &notionapi.SelectFilterCondition{
-						Equals: repositoryName,
+	var pageList []notionapi.Page
+	var cursor notionapi.Cursor
+	for hasMore := true; hasMore; {
+		databaseQueryRequest := &notionapi.DatabaseQueryRequest{
+			CompoundFilter: &notionapi.CompoundFilter{
+				notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
+					{
+						Property: "Repository",
+						Select: &notionapi.SelectFilterCondition{
+							Equals: repositoryName,
+						},
 					},
-				},
-				{
-					Property: "User",
-					Select: &notionapi.SelectFilterCondition{
-						Equals: userLogin,
+					{
+						Property: "User",
+						Select: &notionapi.SelectFilterCondition{
+							Equals: userLogin,
+						},
 					},
 				},
 			},
-		},
+			StartCursor: cursor,
+		}
+		resp, err := client.Database.Query(context.Background(), notionapi.DatabaseID(databaseId), databaseQueryRequest)
+		if err != nil {
+			return nil, errors.New(err.Error())
+		}
+		pageList = append(pageList, resp.Results...)
+		hasMore = resp.HasMore
+		cursor = resp.NextCursor
 	}
-
-	res, err := client.Database.Query(context.Background(), notionapi.DatabaseID(databaseId), databaseQueryRequest)
-	if err != nil {
-		return nil, errors.New(err.Error())
-	}
-	return res.Results, nil
+	return pageList, nil
 }
 
 func QueryNotionRepositoryStatus(client *notionapi.Client, repositoryName string, status string) (output []notionapi.Page, err error) {
 	databaseId := config.GetStr(config.NOTION_REPORT_DATABASE)
 
-	databaseQueryRequest := &notionapi.DatabaseQueryRequest{
-		CompoundFilter: &notionapi.CompoundFilter{
-			notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
-				{
-					Property: "Repository",
-					Select: &notionapi.SelectFilterCondition{
-						Equals: repositoryName,
+	var pageList []notionapi.Page
+	var cursor notionapi.Cursor
+	for hasMore := true; hasMore; {
+		databaseQueryRequest := &notionapi.DatabaseQueryRequest{
+			CompoundFilter: &notionapi.CompoundFilter{
+				notionapi.FilterOperatorAND: []notionapi.PropertyFilter{
+					{
+						Property: "Repository",
+						Select: &notionapi.SelectFilterCondition{
+							Equals: repositoryName,
+						},
 					},
-				},
-				{
-					Property: "Status",
-					Select: &notionapi.SelectFilterCondition{
-						Equals: status,
+					{
+						Property: "Status",
+						Select: &notionapi.SelectFilterCondition{
+							Equals: status,
+						},
 					},
 				},
 			},
-		},
+			StartCursor: cursor,
+		}
+		resp, err := client.Database.Query(context.Background(), notionapi.DatabaseID(databaseId), databaseQueryRequest)
+		if err != nil {
+			return nil, errors.New(err.Error())
+		}
+		pageList = append(pageList, resp.Results...)
+		hasMore = resp.HasMore
+		cursor = resp.NextCursor
 	}
-
-	res, err := client.Database.Query(context.Background(), notionapi.DatabaseID(databaseId), databaseQueryRequest)
-	if err != nil {
-		return nil, errors.New(err.Error())
-	}
-	return res.Results, nil
+	return pageList, nil
 }
 
 func InsertNotionNewPermission(client *notionapi.Client, notionDatabaseType string, repository GitHubRepository) (output *notionapi.Page, err error) {
