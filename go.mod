@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/google/go-github/v39 v39.2.0
-	github.com/jomei/notionapi v1.8.6
+	github.com/jomei/notionapi v1.9.1
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.27.0
 	go.uber.org/ratelimit v0.2.0
