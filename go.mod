@@ -8,5 +8,5 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.28.0
 	go.uber.org/ratelimit v0.2.0
-	golang.org/x/oauth2 v0.9.0
+	golang.org/x/oauth2 v0.10.0
 )
