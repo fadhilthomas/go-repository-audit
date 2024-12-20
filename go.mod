@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/google/go-github/v39 v39.2.0
-	github.com/jomei/notionapi v1.12.9
+	github.com/jomei/notionapi v1.13.3
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.1 // indirect
